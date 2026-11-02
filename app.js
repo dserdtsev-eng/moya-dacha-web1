@@ -293,7 +293,7 @@ function renderTab(tab) {
             const totalDebt = getTotalDebt(plot, plotId);
             let html = '<h3>Задолженности</h3>';
             if (totalDebt === 0) {
-                html += '<div class="card card-blue" style="text-align:center; font-size:18px; font-weight:bold; padding:30px 20px;">✓ Задолженностей по взносам нет</div>';
+                html += '<div class="card card-blue" style="text-align:center; font-size:18px; font-weight:bold; padding:30px 20px;">Задолженностей по взносам нет</div>';
             } else {
                 html += `<div class="card card-blue"><div style="font-size: 18px; margin-bottom: 10px;">Общая сумма долга</div><div style="font-size: 32px; font-weight: bold; color: var(--primary);">${formatMoney(totalDebt)}</div></div>`;
                 html += `<div class="card"><div class="row"><span>За текущий период</span><span>${formatMoney(getMemberDebt(plot, plotId) + getTargetDebt(plot, plotId))}</span></div><div class="row"><span>За прошлый период</span><span>${formatMoney(getPrevMemberDebt(plot, plotId) + getPrevTargetDebt(plot, plotId))}</span></div></div>`;
@@ -332,6 +332,42 @@ function renderTab(tab) {
             content.innerHTML = html;
         }
 
+        // === ВКЛАДКА: ЭЛЕКТРО ===
+        else if (tab === 'electric') {
+            const summary = getElectricSummary({ ...plot, id: plotId });
+            const lastRepl = getLastReplacementDate(plot);
+            let html = '<h3>Электричество</h3>';
+            html += `<div style="color: var(--text-light); margin-bottom: 15px;">Период: с ${lastRepl ? formatDateRu(lastRepl) : 'начала'} (после замены счётчика)</div>`;
+            
+            // Выводим последние показания по всем счётчикам
+            let metersHtml = '';
+            for (const key in summary.lastValsObj) {
+                metersHtml += `<div class="row"><span>Показание (${key})</span><span>${summary.lastValsObj[key]}</span></div>`;
+            }
+            
+            html += `<div class="card">
+                <h4 style="font-size: 18px; margin-bottom: 15px;">Баланс</h4>
+                ${metersHtml}
+                <div class="row" style="margin-top: 10px;"><span>Оплачено, кВт·ч</span><span>${summary.paidKwh.toFixed(1)}</span></div>
+                <div class="row"><span>Израсходовано, кВт·ч</span><span>${summary.consumed.toFixed(1)}</span></div>
+                <div class="row total" style="border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px;">
+                    <span>Итог</span><span style="color: ${summary.balance < 0 ? 'var(--error)' : 'var(--success)'}">${summary.balance.toFixed(1)}</span>
+                </div>
+            </div>`;
+            
+            html += `<h4 style="font-size: 18px; margin-top: 25px; margin-bottom: 15px;">Оплаченные кВт·ч</h4>`;
+            const tariffs = (appData.tariffs || []).sort((a,b) => (a.date||'').localeCompare(b.date||''));
+            const ePayments = (appData.payments || []).filter(p => String(p.plot) === String(plotId) && isElectricPayment(p.description)).sort((a,b) => b.date.localeCompare(a.date));
+            if (ePayments.length === 0) html += '<p>Платежей за электричество нет</p>';
+            else ePayments.forEach(p => {
+                let tPrice = 0;
+                for (const t of tariffs) { if (t.date <= p.date) tPrice = t.price; }
+                const kwh = tPrice > 0 ? (p.amount / tPrice).toFixed(0) : '—';
+                html += `<div class="card"><div style="font-size: 16px; color: var(--text-light); margin-bottom: 5px;">${formatDateRu(p.date)}</div><div class="row" style="padding:0;"><div style="font-size: 14px; color: var(--text-light);">${formatMoney(p.amount)} ÷ ${Number(tPrice).toFixed(2)} ₽/кВт·ч</div><span style="font-size: 20px; font-weight: bold;">${kwh}</span></div></div>`;
+            });
+            content.innerHTML = html;
+        }
+
         // === ВКЛАДКА: QR ===
         else if (tab === 'qr') {
             renderQRTab(plot, plotId, content);
@@ -358,6 +394,7 @@ function renderTab(tab) {
         console.error(err);
     }
 }
+
 // ─── ВКЛАДКА «QR» ───
 function renderQRTab(plot, plotId, content) {
     const totalDebt = getTotalDebt(plot, plotId);
