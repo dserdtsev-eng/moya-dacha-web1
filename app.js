@@ -237,26 +237,18 @@ function getElectricSummary(plot) {
     const readings = plot.meter_readings || [];
     const lastRepl = getLastReplacementDate(plot);
     const relevantReadings = readings.filter(r => !lastRepl || (r.date || '') >= lastRepl).sort((a,b) => (a.date||'').localeCompare(b.date||''));
-    const lastReading = relevantReadings[relevantReadings.length - 1];
     
     let lastVal = 0;
     const lastValsObj = {};
     
-    // Собираем все уникальные названия счётчиков за всю историю
-    const allKeys = new Set();
-    relevantReadings.forEach(r => {
-        if (r.values) {
-            Object.keys(r.values).forEach(k => allKeys.add(k));
+    // Берем ключи из последнего показания, чтобы не сломать логику, если в базе пусто
+    const lastReading = relevantReadings[relevantReadings.length - 1];
+    if (lastReading && lastReading.values) {
+        for (const key in lastReading.values) {
+            lastValsObj[key] = Number(lastReading.values[key] || 0);
+            lastVal += lastValsObj[key];
         }
-    });
-
-    // Заполняем последние значения для всех найденных ключей
-    allKeys.forEach(key => {
-        lastValsObj[key] = lastReading && lastReading.values && lastReading.values[key] !== undefined 
-            ? Number(lastReading.values[key]) 
-            : 0; // Если в последнем месяце нет этого счётчика, ставим 0
-        lastVal += lastValsObj[key];
-    });
+    }
 
     let consumed = 0;
     for (let i = 1; i < relevantReadings.length; i++) {
@@ -267,11 +259,7 @@ function getElectricSummary(plot) {
             for (const key in currVals) {
                 const v1 = Number(prevVals[key] || 0);
                 const v2 = Number(currVals[key] || 0);
-                // Если счётчик только появился, prevVals[key] будет undefined -> 0, и мы посчитаем его начальное значение как расход. 
-                // Чтобы этого избежать, считаем расход только если он был в прошлом месяце.
-                if (prevVals[key] !== undefined && v2 > v1) {
-                    consumed += (v2 - v1);
-                }
+                if (v2 > v1) consumed += (v2 - v1);
             }
         }
     }
@@ -287,6 +275,7 @@ function getElectricSummary(plot) {
     }
     return { lastVal, lastValsObj, consumed, paidKwh, balance: paidKwh - consumed };
 }
+
 // ─── РЕНДЕР ВКЛАДОК ───
 function renderTab(tab) {
     if (!currentPlot || !currentPlot.data) return;
