@@ -238,14 +238,41 @@ function getElectricSummary(plot) {
     const lastRepl = getLastReplacementDate(plot);
     const relevantReadings = readings.filter(r => !lastRepl || (r.date || '') >= lastRepl).sort((a,b) => (a.date||'').localeCompare(b.date||''));
     const lastReading = relevantReadings[relevantReadings.length - 1];
-    const lastVal = lastReading ? Number(lastReading.values["1"] || 0) : 0;
+    
+    let lastVal = 0;
+    const lastValsObj = {};
+    
+    // Собираем все уникальные названия счётчиков за всю историю
+    const allKeys = new Set();
+    relevantReadings.forEach(r => {
+        if (r.values) {
+            Object.keys(r.values).forEach(k => allKeys.add(k));
+        }
+    });
+
+    // Заполняем последние значения для всех найденных ключей
+    allKeys.forEach(key => {
+        lastValsObj[key] = lastReading && lastReading.values && lastReading.values[key] !== undefined 
+            ? Number(lastReading.values[key]) 
+            : 0; // Если в последнем месяце нет этого счётчика, ставим 0
+        lastVal += lastValsObj[key];
+    });
 
     let consumed = 0;
     for (let i = 1; i < relevantReadings.length; i++) {
         if (!relevantReadings[i].replaced) {
-            const v1 = Number(relevantReadings[i-1].values["1"] || 0);
-            const v2 = Number(relevantReadings[i].values["1"] || 0);
-            if (v2 > v1) consumed += (v2 - v1);
+            const prevVals = relevantReadings[i-1].values || {};
+            const currVals = relevantReadings[i].values || {};
+            
+            for (const key in currVals) {
+                const v1 = Number(prevVals[key] || 0);
+                const v2 = Number(currVals[key] || 0);
+                // Если счётчик только появился, prevVals[key] будет undefined -> 0, и мы посчитаем его начальное значение как расход. 
+                // Чтобы этого избежать, считаем расход только если он был в прошлом месяце.
+                if (prevVals[key] !== undefined && v2 > v1) {
+                    consumed += (v2 - v1);
+                }
+            }
         }
     }
 
@@ -258,7 +285,7 @@ function getElectricSummary(plot) {
         for (const t of tariffs) { if (t.date <= p.date) tPrice = t.price; }
         if (tPrice > 0) paidKwh += (Number(p.amount) / tPrice);
     }
-    return { lastVal, consumed, paidKwh, balance: paidKwh - consumed };
+    return { lastVal, lastValsObj, consumed, paidKwh, balance: paidKwh - consumed };
 }
 // ─── РЕНДЕР ВКЛАДОК ───
 function renderTab(tab) {
@@ -303,28 +330,15 @@ function renderTab(tab) {
             let html = '<h3>Показания счётчиков</h3>';
             if (readings.length === 0) html += '<p>Показаний пока нет</p>';
             else readings.forEach(r => {
-                const val = r.values && r.values["1"] !== undefined ? r.values["1"] : '—';
-                html += `<div class="card"><div style="font-size: 16px; color: var(--text-light); margin-bottom: 5px;">${formatDateRu(r.date)}</div><div class="row" style="padding:0;"><span style="font-size: 18px;">Счётчик</span><span style="font-size: 20px; font-weight: bold;">${val}</span></div></div>`;
-            });
-            content.innerHTML = html;
-        }
-
-        // === ВКЛАДКА: ЭЛЕКТРО ===
-        else if (tab === 'electric') {
-            const summary = getElectricSummary({ ...plot, id: plotId });
-            const lastRepl = getLastReplacementDate(plot);
-            let html = '<h3>Электричество</h3>';
-            html += `<div style="color: var(--text-light); margin-bottom: 15px;">Период: с ${lastRepl ? formatDateRu(lastRepl) : 'начала'} (после замены счётчика)</div>`;
-            html += `<div class="card"><h4 style="font-size: 18px; margin-bottom: 15px;">Баланс</h4><div class="row"><span>Оплачено, кВт·ч</span><span>${summary.paidKwh.toFixed(1)}</span></div><div class="row"><span>Израсходовано, кВт·ч</span><span>${summary.consumed.toFixed(1)}</span></div><div class="row total" style="border-top: 1px solid var(--border); padding-top: 10px; margin-top: 10px;"><span>Итог</span><span style="color: ${summary.balance < 0 ? 'var(--error)' : 'var(--success)'}">${summary.balance.toFixed(1)}</span></div></div>`;
-            html += `<h4 style="font-size: 18px; margin-top: 25px; margin-bottom: 15px;">Оплаченные кВт·ч</h4>`;
-            const tariffs = (appData.tariffs || []).sort((a,b) => (a.date||'').localeCompare(b.date||''));
-            const ePayments = (appData.payments || []).filter(p => String(p.plot) === String(plotId) && isElectricPayment(p.description)).sort((a,b) => b.date.localeCompare(a.date));
-            if (ePayments.length === 0) html += '<p>Платежей за электричество нет</p>';
-            else ePayments.forEach(p => {
-                let tPrice = 0;
-                for (const t of tariffs) { if (t.date <= p.date) tPrice = t.price; }
-                const kwh = tPrice > 0 ? (p.amount / tPrice).toFixed(0) : '—';
-                html += `<div class="card"><div style="font-size: 16px; color: var(--text-light); margin-bottom: 5px;">${formatDateRu(p.date)}</div><div class="row" style="padding:0;"><div style="font-size: 14px; color: var(--text-light);">${formatMoney(p.amount)} ÷ ${Number(tPrice).toFixed(2)} ₽/кВт·ч</div><span style="font-size: 20px; font-weight: bold;">${kwh}</span></div></div>`;
+                let valsHtml = '';
+                if (r.values) {
+                    for (const key in r.values) {
+                        valsHtml += `<div style="font-size: 14px; color: var(--text-light); margin-top: 5px;">${key}:</div><div style="font-size: 20px; font-weight: bold; margin-bottom: 5px;">${r.values[key]}</div>`;
+                    }
+                } else {
+                    valsHtml = '<div>—</div>';
+                }
+                html += `<div class="card"><div style="font-size: 16px; color: var(--text-light); margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">${formatDateRu(r.date)}</div><div class="row" style="padding:0; display: block;">${valsHtml}</div></div>`;
             });
             content.innerHTML = html;
         }
@@ -461,18 +475,33 @@ function renderQRElectro(area, plot, summary) {
     const today = todayStr();
     let currentTariff = 0;
     for (const t of (appData.tariffs || [])) { if (t.date <= today) currentTariff = t.price; }
+    
+    // Берем реальные названия счётчиков из базы (например: "Счетчик", "Дополнительный")
+    const lastVals = summary.lastValsObj || {};
+    const keys = Object.keys(lastVals);
+    if (keys.length === 0) keys.push("Счетчик"); // Если в базе пусто, даем название по умолчанию
+
+    let inputsHtml = '';
+    keys.forEach(key => {
+        inputsHtml += `
+            <div style="margin-top: 10px;">
+                <div style="font-size: 16px; color: var(--text-light);">${key} (предыдущее: ${lastVals[key] || 0})</div>
+                <input type="number" class="input-large electro-input" data-key="${key}" placeholder="Показание" value="${lastVals[key] || ''}">
+            </div>
+        `;
+    });
+
     area.innerHTML = `
         <div class="card">
-            <div style="font-size: 18px; margin-bottom: 15px;">Текущее показание счётчика:</div>
-            <input type="number" id="qr-electro-input" class="input-large" placeholder="Показание" value="${summary.lastVal || ''}">
-            <div class="row" style="margin-top: 15px;"><span>Предыдущее: ${summary.lastVal}</span></div>
-            <div class="row"><span>Расход: <span id="qr-delta">0</span> кВт·ч</span></div>
+            <div style="font-size: 18px; margin-bottom: 15px;">Текущие показания счётчиков:</div>
+            ${inputsHtml}
+            <div class="row" style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 10px;"><span>Общий расход: <span id="qr-delta">0</span> кВт·ч</span></div>
             <div class="row"><span>Тариф: ${Number(currentTariff).toFixed(2)} ₽/кВт·ч</span></div>
         </div>
         <div class="card card-blue" style="text-align: center; padding: 20px;">
             <div style="font-size: 18px;">Сумма к оплате</div>
             <div id="qr-electro-sum" style="font-size: 36px; font-weight: bold; color: var(--primary); margin-top: 10px;">0,00 ₽</div>
-            <div id="qr-electro-err" style="color: var(--error); font-size: 16px; margin-top: 10px; display: none;">Введите показание больше предыдущего</div>
+            <div id="qr-electro-err" style="color: var(--error); font-size: 16px; margin-top: 10px; display: none;">Введите показания больше предыдущих</div>
         </div>
         <div id="qr-electro-block" style="text-align: center; margin-top: 20px; display: none;">
             <h4 style="font-size: 20px; margin-bottom: 15px;">QR-код для оплаты</h4>
@@ -481,34 +510,63 @@ function renderQRElectro(area, plot, summary) {
             <button id="save-qr-btn" class="btn-pill" style="background: var(--primary); color: white; margin-bottom: 10px;">💾 Сохранить QR в галерею</button>
         </div>
     `;
-    const input = document.getElementById('qr-electro-input');
+
     const deltaSpan = document.getElementById('qr-delta');
     const sumDiv = document.getElementById('qr-electro-sum');
     const errDiv = document.getElementById('qr-electro-err');
     const qrBlock = document.getElementById('qr-electro-block');
+    const inputs = document.querySelectorAll('.electro-input');
 
-    input.oninput = () => {
-        const val = parseFloat(input.value);
-        const prev = summary.lastVal;
-        if (isNaN(val) || val <= prev) {
-            deltaSpan.textContent = '0'; sumDiv.textContent = '0,00 ₽';
-            errDiv.style.display = val > 0 ? 'block' : 'none';
+    function calcSum() {
+        let totalDelta = 0;
+        let hasError = false;
+        let purposeParts = [];
+
+        inputs.forEach(input => {
+            const key = input.dataset.key;
+            const prev = lastVals[key] || 0;
+            const val = parseFloat(input.value);
+            
+            if (!isNaN(val) && val > prev) {
+                totalDelta += (val - prev);
+                purposeParts.push(`${key}:${val}`); // В назначение платежа пишем "Счетчик: 100600, Дополнительный: 50"
+            } else if (!isNaN(val) && val > 0 && val < prev) {
+                hasError = true;
+            }
+        });
+
+        if (hasError) {
+            errDiv.style.display = 'block';
             qrBlock.style.display = 'none';
+            sumDiv.textContent = '0,00 ₽';
+            deltaSpan.textContent = '0';
             return;
         }
+
         errDiv.style.display = 'none';
-        const delta = val - prev;
-        const sum = delta * currentTariff;
-        deltaSpan.textContent = delta.toFixed(1);
+        const sum = totalDelta * currentTariff;
+        deltaSpan.textContent = totalDelta.toFixed(1);
         sumDiv.textContent = formatMoney(sum);
-        qrBlock.style.display = 'block';
-        const qrData = buildPaymentQR(plot, sum, `${plot.street} ${plot.house}, электроэнергия, показание: ${val}`);
-        if (makeQRInto('qr-target', qrData)) {
-            const btn = document.getElementById('save-qr-btn');
-            if (btn) btn.onclick = () => saveQRToGallery('qr-target');
+
+        if (sum > 0.01) {
+            qrBlock.style.display = 'block';
+            const purpose = `${plot.street} ${plot.house}, электроэнергия, показания: ${purposeParts.join(', ')}`;
+            const qrData = buildPaymentQR(plot, sum, purpose);
+            if (makeQRInto('qr-target', qrData)) {
+                const btn = document.getElementById('save-qr-btn');
+                if (btn) btn.onclick = () => saveQRToGallery('qr-target');
+            }
+        } else {
+            qrBlock.style.display = 'none';
         }
-    };
-    if (input.value) input.dispatchEvent(new Event('input'));
+    }
+
+    inputs.forEach(input => {
+        input.addEventListener('focus', function() { this.select(); });
+        input.addEventListener('input', calcSum);
+    });
+    
+    calcSum();
 }
 
 // ─── ГЕНЕРАЦИЯ QR-СТРОКИ (Чистый UTF-8 / ST00012) ───
