@@ -1,0 +1,123 @@
+:root {
+    --primary: #007ba3; /* Цвет как на скриншотах */
+    --bg: #ffffff;
+    --text: #333;
+    --text-light: #666;
+    --error: #d32f2f;
+    --success: #007ba3;
+    --card-bg: #e0e5ec; /* Серо-голубой фон карточек */
+    --card-blue: #c1e2f0; /* Голубой фон для акцентов */
+    --border: #ccc;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.4;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.screen { display: none; padding: 20px; max-width: 600px; margin: 0 auto; height: 100vh; overflow-y: auto; }
+.screen.active { display: flex; flex-direction: column; }
+
+/* Экран загрузки */
+#loading { align-items: center; justify-content: center; }
+.spinner {
+    width: 40px; height: 40px;
+    border: 4px solid #ccc; border-top-color: var(--primary);
+    border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Экран входа */
+#login-screen { padding-top: 50px; }
+.main-title {
+    text-align: center; color: var(--primary); font-size: 32px; font-weight: bold; margin-bottom: 5px;
+}
+.subtitle {
+    text-align: center; color: var(--text-light); font-size: 20px; margin-bottom: 40px;
+}
+.form-group.outlined {
+    position: relative; margin-bottom: 20px;
+}
+.form-group.outlined label {
+    position: absolute; top: -10px; left: 15px; background: var(--bg);
+    padding: 0 5px; font-size: 14px; color: var(--text-light);
+}
+.form-group.outlined select,
+.form-group.outlined input {
+    width: 100%; padding: 16px 15px; border: 1px solid var(--border);
+    border-radius: 8px; font-size: 18px; background: transparent; outline: none;
+}
+.form-group.outlined select:focus,
+.form-group.outlined input:focus {
+    border-color: var(--primary);
+}
+.checkbox-group {
+    display: flex; align-items: center; margin-bottom: 25px; font-size: 16px;
+}
+.checkbox-group input {
+    width: 24px; height: 24px; margin-right: 10px; accent-color: var(--primary);
+}
+.btn-pill {
+    width: 100%; padding: 16px; background: var(--primary); color: white;
+    border: none; border-radius: 30px; font-size: 18px; font-weight: bold; cursor: pointer;
+    transition: opacity 0.2s;
+}
+.btn-pill:disabled { background: #e0e0e0; color: #999; cursor: not-allowed; }
+.btn-pill:not(:disabled):hover { opacity: 0.9; }
+.error { color: var(--error); text-align: center; margin-top: 10px; font-size: 14px; }
+.hint { text-align: center; color: var(--text-light); }
+
+/* Шапка дашборда */
+.app-header {
+    display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;
+    flex-shrink: 0; /* Запрещаем шапке сжиматься */
+}
+.header-info h2 { font-size: 20px; font-weight: bold; }
+.header-info p { font-size: 16px; color: var(--text-light); }
+.header-actions { display: flex; align-items: center; gap: 10px; }
+.btn-icon { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--primary); }
+.btn-text { background: none; border: none; font-size: 16px; color: var(--error); cursor: pointer; font-weight: bold; }
+
+/* Вкладки */
+.tabs {
+    display: flex; overflow-x: auto; gap: 15px; margin-bottom: 20px; padding-bottom: 5px;
+    border-bottom: 1px solid #eee; -webkit-overflow-scrolling: touch;
+    flex-shrink: 0; /* Запрещаем меню пропадать и сжиматься */
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab-btn {
+    background: none; border: none; padding: 8px 0; color: var(--primary);
+    font-size: 18px; font-weight: bold; white-space: nowrap; cursor: pointer;
+    border-bottom: 3px solid transparent;
+}
+.tab-btn.active { border-bottom-color: var(--primary); }
+
+/* Контент */
+.tab-content { flex: 1; }
+h3 { font-size: 20px; margin-bottom: 15px; font-weight: bold; }
+
+.card {
+    background: var(--card-bg); padding: 20px; border-radius: 12px; margin-bottom: 15px;
+}
+.card-blue { background: var(--card-blue); }
+.card-title { font-size: 18px; font-weight: bold; margin-bottom: 10px; }
+
+.row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 18px; }
+.row.total { font-weight: bold; font-size: 22px; margin-top: 10px; }
+.row span:last-child { font-weight: bold; }
+
+/* Кнопки в карточках */
+.btn-calc {
+    width: 100%; padding: 12px; background: var(--primary); color: white;
+    border: none; border-radius: 8px; font-size: 16px; font-weight: bold; margin-top: 15px; cursor: pointer;
+}
+
+/* Поля ввода на вкладках */
+.input-large {
+    width: 100%; padding: 15px; border: 1px solid var(--border); border-radius: 8px;
+    font-size: 20px; margin-top: 10px; text-align: center;
+}
