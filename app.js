@@ -440,14 +440,17 @@ function makeQRInto(containerId, data) {
     el.innerHTML = '';
     try {
         const qr = qrcode(0, 'M');
-        qr.addData(data); // <--- ЖЕСТКО УКАЗЫВАЕМ БАЙТОВЫЙ РЕЖИМ (UTF-8)
+        qr.addData(data);
         qr.make();
-        el.innerHTML = qr.createSvgTag({ scalable: true });
-        const svg = el.querySelector('svg');
-        if (svg) {
-            svg.style.width = '240px';
-            svg.style.height = '240px';
-            svg.style.display = 'block';
+        // Генерируем как обычную картинку (img). Это самый надежный способ для iOS
+        el.innerHTML = qr.createImgTag(6, 6); 
+        const img = el.querySelector('img');
+        if (img) {
+            img.style.width = '100%';
+            img.style.maxWidth = '240px';
+            img.style.height = 'auto';
+            img.style.display = 'block';
+            img.style.imageRendering = 'pixelated'; // Чтобы не размывалось
         }
         return true;
     } catch (e) {
