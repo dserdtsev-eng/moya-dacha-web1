@@ -621,25 +621,51 @@ function buildPaymentQR(plot, amount, purpose) {
 function saveQRToGallery(containerId) {
     const container = document.getElementById(containerId);
     if (!container) return;
-    const svg = container.querySelector('svg');
-    if (!svg) { alert('QR-код ещё не сгенерирован.'); return; }
+    
+    const img = container.querySelector('img');
+    if (!img || !img.src) {
+        alert('QR-код ещё не сгенерирован.');
+        return;
+    }
 
-    const svgData = new XMLSerializer().serializeToString(svg);
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    const img = new Image();
-    img.onload = function() {
-        canvas.width = img.width || 240;
-        canvas.height = img.height || 240;
-        ctx.drawImage(img, 0, 0);
+    // Проверяем, является ли устройство iOS
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+    if (isIOS) {
+        // На iPhone показываем системное меню "Поделиться" (если поддерживается)
+        // или открываем картинку в новой вкладке для ручного сохранения
+        if (navigator.share && navigator.canShare) {
+            fetch(img.src)
+                .then(res => res.blob())
+                .then(blob => {
+                    const file = new File([blob], 'QR.png', { type: 'image/png' });
+                    if (navigator.canShare({ files: [file] })) {
+                        navigator.share({
+                            files: [file],
+                            title: 'QR-код для оплаты',
+                        }).catch(() => {});
+                        return;
+                    }
+                    // Если файлы нельзя передать, открываем в новой вкладке
+                    window.open(img.src, '_blank');
+                }).catch(() => window.open(img.src, '_blank'));
+        } else {
+            // Если Web Share не поддерживается, открываем картинку в новой вкладке
+            window.open(img.src, '_blank');
+            alert('Нажмите и удерживайте картинку, чтобы сохранить её в галерею.');
+        }
+    } else {
+        // Для Android и компьютеров работает обычное скачивание
         const a = document.createElement('a');
+        a.href = img.src;
         const street = currentPlot?.data?.street ? currentPlot.data.street.replace(/\s+/g, '_') : 'Участок';
         const house = currentPlot?.data?.house ? currentPlot.data.house.replace(/\s+/g, '_') : '';
         a.download = `QR_${street}_${house}.png`;
-        a.href = canvas.toDataURL("image/png");
+        
+        document.body.appendChild(a);
         a.click();
-    };
-    img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgData)));
+        document.body.removeChild(a);
+    }
 }
 
 // ─── ОБРАБОТЧИКИ ШАПКИ ───
